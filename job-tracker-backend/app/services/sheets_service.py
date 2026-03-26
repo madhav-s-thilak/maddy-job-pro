@@ -85,12 +85,14 @@ class SheetsService:
             
             jobs = []
             for idx, row in enumerate(all_records[1:], start=2):  # Skip header
-                if not row or len(row) < 2:
+                # Skip empty rows or rows perfectly blank (caused by tables/cleared rows)
+                if not row or not any(str(cell).strip() for cell in row):
                     continue
                 
                 # Filter by user if specified
-                if user and row[1] != user:
-                    continue
+                if user and len(row) > 1 and row[1]:
+                    if user.lower() != row[1].lower():
+                        continue
                 
                 job = self._row_to_job(row, idx)
                 jobs.append(job)
@@ -103,14 +105,27 @@ class SheetsService:
     def create_job(self, job: JobCreate) -> Job:
         """Create a new job entry"""
         try:
-            # Get next row ID
             all_rows = self.worksheet.get_all_values()
-            next_row_id = len(all_rows) + 1
+            
+            target_row = 2  # Default starting row
+            found_empty = False
+            
+            # Search for the first completely empty row to reuse it or insert there
+            for i, row in enumerate(all_rows):
+                if i == 0:
+                    continue  # Skip header
+                if not row or not any(str(cell).strip() for cell in row):
+                    target_row = i + 1
+                    found_empty = True
+                    break
+            
+            if not found_empty:
+                target_row = len(all_rows) + 1
             
             timestamp = datetime.now().isoformat()
             
             row_data = [
-                next_row_id - 1,  # Row ID
+                target_row - 1,  # Row ID
                 job.user.value,
                 job.company,
                 job.role,
@@ -126,10 +141,13 @@ class SheetsService:
                 timestamp   # Updated at
             ]
             
-            self.worksheet.append_row(row_data)
+            # Using update instead of append_row respects existing Tables in Google Sheets
+            # and prevents jumping to the end of predefined table bounds
+            cell_range = f'A{target_row}:N{target_row}'
+            self.worksheet.update(cell_range, [row_data])
             
             return Job(
-                row_id=next_row_id,
+                row_id=target_row,
                 user=job.user,
                 company=job.company,
                 role=job.role,
@@ -201,8 +219,16 @@ class SheetsService:
             self.worksheet.delete_rows(row_id)
             return True
         except Exception as e:
-            print(f"Error deleting job: {e}")
-            return False
+            print(f"Error deleting job via delete_rows: {e}")
+            # Fallback for Google Sheets Tables which don't allow row deletion
+            try:
+                # Clear the cells instead (N columns starting from A)
+                empty_row = [""] * 14
+                self.worksheet.update(f'A{row_id}:N{row_id}', [empty_row])
+                return True
+            except Exception as e2:
+                print(f"Error clearing job row: {e2}")
+                return False
     
     def update_notes(self, row_id: int, notes: str) -> bool:
         """Update only the notes field"""
