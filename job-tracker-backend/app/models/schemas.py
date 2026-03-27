@@ -6,6 +6,7 @@ from enum import Enum
 class UserEnum(str, Enum):
     MADHAV = "Madhav"
     VEENA = "Veena"
+    VANDHANA = "Vandhana"
 
 class StatusEnum(str, Enum):
     NOT_APPLIED = "Not Applied"
@@ -69,6 +70,15 @@ class ResumeOptimizeRequest(BaseModel):
 class ResumeOptimizeResponse(BaseModel):
     optimized_resume: str
     changes_summary: str
+
+class HREmailGenerateRequest(BaseModel):
+    job_description: str
+    resume_content: str
+    applicant_name: str
+
+class HREmailGenerateResponse(BaseModel):
+    email_body: str
+    email_subject: str
 
 class JobSearchRequest(BaseModel):
     keywords: str

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { jobsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
-import { 
-  BarChart3, TrendingUp, Briefcase, CheckCircle, 
-  XCircle, Clock, Award, X 
+import {
+  BarChart3, TrendingUp, Briefcase, CheckCircle,
+  XCircle, Clock, Award
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
@@ -11,11 +11,7 @@ const Analytics = ({ currentUser }) => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [currentUser]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const response = await jobsAPI.getAnalytics(currentUser);
@@ -26,7 +22,11 @@ const Analytics = ({ currentUser }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (

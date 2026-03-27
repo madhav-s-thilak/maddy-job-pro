@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { resumeAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
-import { X, Sparkles, Copy, Download, FileText } from 'lucide-react';
+import { X, Sparkles, Copy, Download } from 'lucide-react';
 
 const ResumeOptimizer = ({ job, onClose }) => {
   const [currentResume, setCurrentResume] = useState('');

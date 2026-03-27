@@ -121,4 +121,70 @@ Return ONLY the JSON object, no markdown formatting or explanations."""
             print(f"Error extracting job details: {e}")
             raise
 
+    def generate_hr_email(self, job_description: str, resume_content: str, applicant_name: str) -> tuple[str, str]:
+        """
+        Generate a humanized email to HR with the job description and resume
+        Returns: (email_body, email_subject)
+        """
+        try:
+            prompt = f"""You are a professional job applicant writing an email to HR/recruiter.
+
+JOB DESCRIPTION:
+{job_description}
+
+MY RESUME CONTENT:
+{resume_content}
+
+MY NAME: {applicant_name}
+
+TASK: Write a warm, humanized, professional email to send to HR expressing interest in this position.
+
+CRITICAL INSTRUCTIONS:
+1. Extract ACTUAL details from MY RESUME CONTENT above - use my real companies, projects, skills, and achievements
+2. DO NOT use placeholders like "XYZ Labs", "XYZ company", "[University]", or generic terms
+3. Reference specific projects, companies, or achievements from my resume that match the job requirements
+4. Keep it concise (150-250 words)
+5. Be professional but personable - not robotic
+6. Highlight 2-3 key relevant experiences/skills from MY resume that match the job
+7. Show genuine enthusiasm for the role and company
+8. End with a clear call-to-action
+9. Do NOT use generic phrases like "I am writing to express my interest"
+10. Make it sound like a real human wrote it
+
+OUTPUT FORMAT:
+Return a JSON object with:
+{{
+    "subject": "email subject line",
+    "body": "full email body with greeting and sign-off"
+}}
+
+Return ONLY the JSON, no markdown or explanations."""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a professional job applicant. Write warm, humanized emails using ACTUAL details from the provided resume. NEVER use placeholders."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+
+            import json
+            result = response.choices[0].message.content
+
+            # Clean up response
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+
+            email_data = json.loads(result)
+
+            return email_data.get("body", ""), email_data.get("subject", "")
+
+        except Exception as e:
+            print(f"Error generating HR email: {e}")
+            raise
+
 groq_service = GroqService()

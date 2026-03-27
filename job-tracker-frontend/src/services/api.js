@@ -51,10 +51,17 @@ export const applicationsAPI = {
 
 // Resume API
 export const resumeAPI = {
-  optimize: (jobDescription, currentResume) => 
-    api.post('/resume/optimize', { 
-      job_description: jobDescription, 
-      current_resume: currentResume 
+  optimize: (jobDescription, currentResume) =>
+    api.post('/resume/optimize', {
+      job_description: jobDescription,
+      current_resume: currentResume
+    }),
+
+  generateEmail: (jobDescription, resumeContent, applicantName) =>
+    api.post('/resume/generate-email', {
+      job_description: jobDescription,
+      resume_content: resumeContent,
+      applicant_name: applicantName
     }),
 };
 

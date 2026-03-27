@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { applicationsAPI, jobsAPI } from '../services/api';
 import { toast } from 'react-hot-toast';
-import { 
-  Building2, MapPin, DollarSign, Calendar, 
-  Trash2, Edit, CheckCircle, ExternalLink, StickyNote,
-  Sparkles
+import {
+  Building2, MapPin, DollarSign, Calendar,
+  Trash2, CheckCircle, ExternalLink, StickyNote,
+  Sparkles, Mail
 } from 'lucide-react';
 import ResumeOptimizer from './ResumeOptimizer';
 import NotesEditor from './NotesEditor';
+import EmailGenerator from './EmailGenerator';
 
 const STATUS_COLORS = {
   'Not Applied': 'bg-gray-100 text-gray-800 border-gray-300',
@@ -21,6 +22,7 @@ const STATUS_COLORS = {
 const JobCard = ({ job, onUpdate, onDelete }) => {
   const [showResumeOptimizer, setShowResumeOptimizer] = useState(false);
   const [showNotesEditor, setShowNotesEditor] = useState(false);
+  const [showEmailGenerator, setShowEmailGenerator] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
   const handleMarkAsApplied = async () => {
@@ -150,6 +152,14 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
             </button>
 
             <button
+              onClick={() => setShowEmailGenerator(true)}
+              className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              <Mail size={16} />
+              Generate Email
+            </button>
+
+            <button
               onClick={() => setShowNotesEditor(true)}
               className="flex items-center justify-center gap-2 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
             >
@@ -196,6 +206,14 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
             onUpdate();
           }}
           onClose={() => setShowNotesEditor(false)}
+        />
+      )}
+
+      {showEmailGenerator && (
+        <EmailGenerator
+          job={job}
+          currentUser={job.user}
+          onClose={() => setShowEmailGenerator(false)}
         />
       )}
     </>

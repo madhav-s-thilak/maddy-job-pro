@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { jobsAPI } from '../services/api';
 import JobCard from './JobCard';
 import JobSearch from './JobSearch';
@@ -18,11 +18,7 @@ const Dashboard = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showJobSearch, setShowJobSearch] = useState(false);
 
-  useEffect(() => {
-    fetchJobs();
-  }, [currentUser, filters]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
       const response = await jobsAPI.getAll(
@@ -37,7 +33,11 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser, filters]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
 
   const handleJobUpdate = () => {
     fetchJobs();
@@ -93,6 +93,16 @@ const Dashboard = () => {
                   }`}
                 >
                   Veena
+                </button>
+                <button
+                  onClick={() => setCurrentUser('Vandhana')}
+                  className={`px-4 py-2 rounded-md font-medium transition-all ${
+                    currentUser === 'Vandhana'
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Vandhana
                 </button>
               </div>
             </div>
