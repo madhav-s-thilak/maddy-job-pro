@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class GroqService:
     def __init__(self):
         self.client = Groq(api_key=settings.GROQ_API_KEY)
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "openai/gpt-oss-120b"
     
     def optimize_resume(self, job_description: str, current_resume: str) -> Tuple[str, str]:
         """
