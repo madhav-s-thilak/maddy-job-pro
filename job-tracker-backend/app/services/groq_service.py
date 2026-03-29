@@ -150,6 +150,7 @@ CRITICAL INSTRUCTIONS:
 8. End with a clear call-to-action
 9. Do NOT use generic phrases like "I am writing to express my interest"
 10. Make it sound like a real human wrote it
+11. Style: Ruthlessly concise and skimmable. Opening: BLUF (Bottom-Line Up Front).Body: Exactly 2-3 bullet points highlighting quantifiable resume metrics.Closing: Confident and decisive.
 
 OUTPUT FORMAT:
 Return a JSON object with:
