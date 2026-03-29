@@ -75,6 +75,8 @@ class HREmailGenerateRequest(BaseModel):
     job_description: str
     resume_content: str
     applicant_name: str
+    row_id: Optional[int] = None
+    resume_filename: Optional[str] = None
 
 class HREmailGenerateResponse(BaseModel):
     email_body: str

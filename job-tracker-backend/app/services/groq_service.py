@@ -1,6 +1,11 @@
+import json
+import logging
 from groq import Groq
 from app.config import settings
 from typing import Tuple
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class GroqService:
     def __init__(self):
@@ -72,7 +77,7 @@ Provide a concise bullet-point summary of the main optimizations (3-5 points).""
             return optimized_resume, changes_summary
             
         except Exception as e:
-            print(f"Error optimizing resume: {e}")
+            logger.error(f"Error optimizing resume: {e}", exc_info=True)
             raise
     
     def extract_job_details(self, job_html: str) -> dict:
@@ -106,9 +111,8 @@ Return ONLY the JSON object, no markdown formatting or explanations."""
                 max_tokens=2000
             )
             
-            import json
             result = response.choices[0].message.content
-            
+
             # Clean up response
             if "```json" in result:
                 result = result.split("```json")[1].split("```")[0].strip()
@@ -118,7 +122,7 @@ Return ONLY the JSON object, no markdown formatting or explanations."""
             return json.loads(result)
             
         except Exception as e:
-            print(f"Error extracting job details: {e}")
+            logger.error(f"Error extracting job details: {e}", exc_info=True)
             raise
 
     def generate_hr_email(self, job_description: str, resume_content: str, applicant_name: str) -> tuple[str, str]:
@@ -127,7 +131,7 @@ Return ONLY the JSON object, no markdown formatting or explanations."""
         Returns: (email_body, email_subject)
         """
         try:
-            prompt = f"""You are a professional job applicant writing an email to HR/recruiter.
+            prompt = f"""You are a professional job applicant writing an email to HR/recruiter at a top company.
 
 JOB DESCRIPTION:
 {job_description}
@@ -137,55 +141,71 @@ MY RESUME CONTENT:
 
 MY NAME: {applicant_name}
 
-TASK: Write a warm, humanized, professional email to send to HR expressing interest in this position.
+TASK: Write a warm, professional, well-structured email to send to HR expressing interest in this position.
 
-CRITICAL INSTRUCTIONS:
-1. Extract ACTUAL details from MY RESUME CONTENT above - use my real companies, projects, skills, and achievements
-2. DO NOT use placeholders like "XYZ Labs", "XYZ company", "[University]", or generic terms
-3. Reference specific projects, companies, or achievements from my resume that match the job requirements
-4. Keep it concise (150-250 words)
-5. Be professional but personable - not robotic
-6. Highlight 2-3 key relevant experiences/skills from MY resume that match the job
-7. Show genuine enthusiasm for the role and company
-8. End with a clear call-to-action
-9. Do NOT use generic phrases like "I am writing to express my interest"
-10. Make it sound like a real human wrote it
-11. Style: Ruthlessly concise and skimmable. Opening: BLUF (Bottom-Line Up Front).Body: Exactly 2-3 bullet points highlighting quantifiable resume metrics.Closing: Confident and decisive.
+EMAIL STRUCTURE (follow this exact format):
+
+**Subject Line:**
+- Keep it clear and specific (e.g., "Application for [Role] - [Your Name]")
+
+**Email Body:**
+- **Opening (1-2 sentences):** State the role you're applying for and a brief hook about why you're excited
+- **Body Paragraph 1:** Highlight 1-2 most relevant experiences/companies from your resume that match this role
+- **Body Paragraph 2:** Mention 1-2 key skills or achievements that directly align with the job requirements
+- **Closing (1-2 sentences):** Express enthusiasm and include a clear call-to-action (e.g., requesting a conversation)
+
+CRITICAL RULES:
+1. Use ONLY real details from MY RESUME CONTENT - actual companies, projects, achievements
+2. NEVER use placeholders like "XYZ Labs", "[Company]", "[University]", etc.
+3. Keep it concise (150-250 words total)
+4. Use proper paragraph breaks for readability - do NOT write one giant paragraph
+5. Sound human and enthusiastic, not robotic
+6. Do NOT use generic openers like "I am writing to express my interest"
 
 OUTPUT FORMAT:
-Return a JSON object with:
+Return ONLY a valid JSON object (no markdown, no explanations):
 {{
-    "subject": "email subject line",
-    "body": "full email body with greeting and sign-off"
-}}
-
-Return ONLY the JSON, no markdown or explanations."""
+    "subject": "clear subject line",
+    "body": "Dear [Hiring Team/Recruiter],\\n\\n[Opening paragraph]\\n\\n[Body paragraph 1]\\n\\n[Body paragraph 2]\\n\\n[Closing]\\n\\nBest regards,\\n[Your Name]"
+}}"""
 
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a professional job applicant. Write warm, humanized emails using ACTUAL details from the provided resume. NEVER use placeholders."},
+                    {"role": "system", "content": "You are a professional job applicant. Write warm, well-structured emails using ACTUAL details from the provided resume. NEVER use placeholders. Always use proper paragraph breaks."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1200
             )
 
-            import json
             result = response.choices[0].message.content
 
-            # Clean up response
+            # Clean up response - handle various markdown formats
+            logger.info(f"Raw email generation response: {result[:200]}...")
             if "```json" in result:
                 result = result.split("```json")[1].split("```")[0].strip()
             elif "```" in result:
                 result = result.split("```")[1].split("```")[0].strip()
 
+            # Remove any leading/trailing whitespace and potential JSON markers
+            result = result.strip()
+            if result.startswith("{"):
+                result = result
+            elif result.startswith('"') or result.startswith("'"):
+                # Sometimes the response might be a stringified JSON
+                result = result.strip('"').strip("'")
+
             email_data = json.loads(result)
 
             return email_data.get("body", ""), email_data.get("subject", "")
 
+        except json.JSONDecodeError as je:
+            logger.error(f"JSON decode error in generate_hr_email: {je}")
+            logger.error(f"Raw result that failed to parse: {result}")
+            raise
         except Exception as e:
-            print(f"Error generating HR email: {e}")
+            logger.error(f"Error generating HR email: {e}", exc_info=True)
             raise
 
 groq_service = GroqService()

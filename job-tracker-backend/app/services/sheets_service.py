@@ -240,20 +240,30 @@ class SheetsService:
             print(f"Error updating notes: {e}")
             return False
     
+    def update_resume_version(self, row_id: int, resume_version: str) -> bool:
+        """Update only the resume version field for a job"""
+        try:
+            self.worksheet.update(f'K{row_id}', resume_version)
+            self.worksheet.update(f'N{row_id}', datetime.now().isoformat())
+            return True
+        except Exception as e:
+            print(f"Error updating resume version: {e}")
+            return False
+
     def mark_as_applied(self, row_id: int, resume_version: str = "") -> Optional[Job]:
         """Mark a job as applied"""
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d")
-            
+
             self.worksheet.update(f'I{row_id}', StatusEnum.APPLIED.value)
             self.worksheet.update(f'J{row_id}', timestamp)
             if resume_version:
                 self.worksheet.update(f'K{row_id}', resume_version)
             self.worksheet.update(f'N{row_id}', datetime.now().isoformat())
-            
+
             updated_row = self.worksheet.row_values(row_id)
             return self._row_to_job(updated_row, row_id)
-            
+
         except Exception as e:
             print(f"Error marking as applied: {e}")
             raise

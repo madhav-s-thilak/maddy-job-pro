@@ -30,6 +30,15 @@ async def generate_hr_email(request: HREmailGenerateRequest):
             request.applicant_name
         )
 
+        # Store resume version in Google Sheets if row_id is provided
+        if request.row_id and request.resume_filename:
+            try:
+                from app.services.sheets_service import sheets_service
+                sheets_service.update_resume_version(request.row_id, request.resume_filename)
+            except Exception as sheet_error:
+                print(f"Warning: Could not update Google Sheets: {sheet_error}")
+                # Don't fail the request if sheets update fails
+
         return HREmailGenerateResponse(
             email_body=email_body,
             email_subject=email_subject
