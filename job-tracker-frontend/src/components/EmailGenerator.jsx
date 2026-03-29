@@ -15,7 +15,6 @@ const EmailGenerator = ({ job, currentUser, onClose }) => {
   const [emailSubject, setEmailSubject] = useState('');
   const [loading, setLoading] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState('');
 
   const extractTextFromPDF = async (file) => {
     try {
@@ -46,7 +45,6 @@ const EmailGenerator = ({ job, currentUser, onClose }) => {
     if (file && file.type === 'application/pdf') {
       setResumeFile(file);
       setExtracting(true);
-      setExtractError('');
 
       try {
         const text = await extractTextFromPDF(file);
@@ -55,7 +53,6 @@ const EmailGenerator = ({ job, currentUser, onClose }) => {
       } catch (error) {
         console.error('Error extracting PDF text:', error);
         const errorMsg = error.message || 'Failed to extract text from PDF';
-        setExtractError(errorMsg);
         toast.error(`Extraction failed: ${errorMsg}`);
         // Fallback - still allow user to proceed with just the filename
         setResumeContent(`[PDF Resume: ${file.name}]\n\nNote: Text extraction failed. Please paste your resume content manually below.`);
@@ -78,12 +75,14 @@ const EmailGenerator = ({ job, currentUser, onClose }) => {
       const response = await resumeAPI.generateEmail(
         job.job_description || job.jd_link,
         resumeContent || `[Resume: ${resumeFile.name}]`,
-        applicantName
+        applicantName,
+        job.row_id,
+        resumeFile.name
       );
 
       setEmailBody(response.data.email_body);
       setEmailSubject(response.data.email_subject);
-      toast.success('Email generated successfully!');
+      toast.success('Email generated successfully! Resume version saved to Google Sheets.');
     } catch (error) {
       console.error('Error generating email:', error);
       toast.error('Failed to generate email');

@@ -57,11 +57,13 @@ export const resumeAPI = {
       current_resume: currentResume
     }),
 
-  generateEmail: (jobDescription, resumeContent, applicantName) =>
+  generateEmail: (jobDescription, resumeContent, applicantName, rowId = null, resumeFilename = null) =>
     api.post('/resume/generate-email', {
       job_description: jobDescription,
       resume_content: resumeContent,
-      applicant_name: applicantName
+      applicant_name: applicantName,
+      row_id: rowId,
+      resume_filename: resumeFilename
     }),
 };
 
