@@ -18,9 +18,9 @@ class GroqService:
         Returns: (optimized_resume, changes_summary)
         """
         try:
-            prompt = f"""You are an expert ATS resume optimizer and technical recruiter.
+            prompt = f"""You are an expert ATS resume optimizer and technical recruiter at a top tech company.
 
-TASK: Optimize the provided LaTeX resume to match the job description while maintaining truthfulness and the original structure.
+TASK: Optimize the provided LaTeX resume to strongly match the job description while maintaining 100% truthfulness and the original LaTeX structure.
 
 JOB DESCRIPTION:
 {job_description}
@@ -28,25 +28,32 @@ JOB DESCRIPTION:
 CURRENT RESUME (LaTeX):
 {current_resume}
 
-INSTRUCTIONS:
-1. Analyze the job description for key requirements, skills, and keywords
-2. Optimize the resume to highlight relevant experience and skills
-3. Use ATS-friendly keywords naturally throughout
-4. Ensure all content remains truthful - DO NOT fabricate experience
-5. Maintain the LaTeX structure and formatting
-6. Focus on impact metrics and achievements relevant to the role
-7. Return ONLY the optimized LaTeX code without explanations
+OPTIMIZATION STRATEGY:
+1. Extract key skills, technologies, and requirements from the job description
+2. Strategically incorporate relevant keywords from the job posting throughout the resume
+3. Reframe existing bullet points to emphasize experiences most relevant to this role
+4. Add quantifiable impact metrics where they exist (do not fabricate numbers)
+5. Strengthen action verbs and make achievements more prominent
+6. Ensure technical skills section reflects priority skills from the job description
+7. Maintain clean, ATS-friendly LaTeX formatting
 
-OUTPUT ONLY THE COMPLETE OPTIMIZED LATEX RESUME CODE."""
+CRITICAL RULES:
+- NEVER fabricate experience, skills, or companies
+- Keep all content truthful and accurate to the original resume
+- Preserve the exact LaTeX structure, packages, and formatting
+- Do not add placeholder text like "[Company]" or "[Date]"
+- Return ONLY the complete optimized LaTeX code
+
+OUTPUT: Return the complete optimized LaTeX resume code with no explanations or markdown wrappers."""
 
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are an expert ATS resume optimizer. Return only clean LaTeX code without markdown formatting or explanations."},
+                    {"role": "system", "content": "You are an expert ATS resume optimizer. Return only clean, complete LaTeX code without markdown formatting, explanations, or placeholders."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=4000
+                temperature=0.4,
+                max_tokens=6000
             )
             
             optimized_resume = response.choices[0].message.content

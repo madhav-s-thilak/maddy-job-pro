@@ -8,6 +8,7 @@ const ResumeOptimizer = ({ job, onClose }) => {
   const [optimizedResume, setOptimizedResume] = useState('');
   const [changesSummary, setChangesSummary] = useState('');
   const [loading, setLoading] = useState(false);
+  const [jobDescription, setJobDescription] = useState(job.job_description || '');
 
   const handleOptimize = async () => {
     if (!currentResume.trim()) {
@@ -18,7 +19,7 @@ const ResumeOptimizer = ({ job, onClose }) => {
     setLoading(true);
     try {
       const response = await resumeAPI.optimize(
-        job.job_description || job.jd_link,
+        jobDescription,
         currentResume
       );
       
@@ -78,12 +79,18 @@ const ResumeOptimizer = ({ job, onClose }) => {
             <div className="space-y-6">
               {/* Job Description */}
               <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Job Description:</h3>
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 max-h-40 overflow-y-auto">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {job.job_description || 'No job description available. View the job link.'}
-                  </p>
-                </div>
+                <label className="block font-semibold text-gray-900 mb-2">
+                  Job Description (Editable):
+                </label>
+                <textarea
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Paste the job description here..."
+                  className="w-full h-40 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+                />
+                <p className="mt-2 text-sm text-gray-600">
+                  Tip: You can edit this or paste a different job description to optimize your resume for any job
+                </p>
               </div>
 
               {/* Current Resume Input */}
