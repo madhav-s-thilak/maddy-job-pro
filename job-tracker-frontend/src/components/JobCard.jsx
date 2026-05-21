@@ -4,40 +4,40 @@ import { toast } from 'react-hot-toast';
 import {
   Building2, MapPin, DollarSign, Calendar,
   Trash2, CheckCircle, ExternalLink, StickyNote,
-  Sparkles, Mail
+  Sparkles, Mail, Brain
 } from 'lucide-react';
 import ResumeOptimizer from './ResumeOptimizer';
 import NotesEditor from './NotesEditor';
 import EmailGenerator from './EmailGenerator';
+import RecruiterScoreModal from './RecruiterScoreModal';
 
 const STATUS_COLORS = {
   'Not Applied': 'bg-gray-100 text-gray-800 border-gray-300',
-  'Applied': 'bg-blue-100 text-blue-800 border-blue-300',
-  'Interview': 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  'Offer': 'bg-green-100 text-green-800 border-green-300',
-  'Rejected': 'bg-red-100 text-red-800 border-red-300',
-  'Withdrawn': 'bg-purple-100 text-purple-800 border-purple-300'
+  'Applied':     'bg-blue-100 text-blue-800 border-blue-300',
+  'Interview':   'bg-yellow-100 text-yellow-800 border-yellow-300',
+  'Offer':       'bg-green-100 text-green-800 border-green-300',
+  'Rejected':    'bg-red-100 text-red-800 border-red-300',
+  'Withdrawn':   'bg-purple-100 text-purple-800 border-purple-300',
 };
 
 const JobCard = ({ job, onUpdate, onDelete }) => {
   const [showResumeOptimizer, setShowResumeOptimizer] = useState(false);
   const [showNotesEditor, setShowNotesEditor] = useState(false);
   const [showEmailGenerator, setShowEmailGenerator] = useState(false);
+  const [showRecruiterScore, setShowRecruiterScore] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
   const handleMarkAsApplied = async () => {
-    if (window.confirm('Mark this job as applied?')) {
-      setIsApplying(true);
-      try {
-        await applicationsAPI.markAsApplied(job.row_id);
-        toast.success('Marked as applied!');
-        onUpdate();
-      } catch (error) {
-        console.error('Error marking as applied:', error);
-        toast.error('Failed to mark as applied');
-      } finally {
-        setIsApplying(false);
-      }
+    if (!window.confirm('Mark this job as applied?')) return;
+    setIsApplying(true);
+    try {
+      await applicationsAPI.markAsApplied(job.row_id);
+      toast.success('Marked as applied!');
+      onUpdate();
+    } catch {
+      toast.error('Failed to mark as applied');
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -46,8 +46,7 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
       await jobsAPI.update(job.row_id, { status: newStatus });
       toast.success('Status updated!');
       onUpdate();
-    } catch (error) {
-      console.error('Error updating status:', error);
+    } catch {
       toast.error('Failed to update status');
     }
   };
@@ -55,10 +54,11 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
   return (
     <>
       <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 border border-gray-200 overflow-hidden group">
-        {/* Header */}
+
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
+            <div className="flex-1 pr-2">
               <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors">
                 {job.role}
               </h3>
@@ -67,50 +67,43 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
                 <span className="font-medium">{job.company}</span>
               </div>
             </div>
-            
-            {/* Status Badge */}
+
+            {/* Status badge */}
             <select
               value={job.status}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className={`px-3 py-1 rounded-full text-sm font-medium border cursor-pointer ${
+              onChange={e => handleStatusChange(e.target.value)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border cursor-pointer focus:outline-none flex-shrink-0 ${
                 STATUS_COLORS[job.status] || STATUS_COLORS['Not Applied']
               }`}
             >
-              <option value="Not Applied">Not Applied</option>
-              <option value="Applied">Applied</option>
-              <option value="Interview">Interview</option>
-              <option value="Offer">Offer</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Withdrawn">Withdrawn</option>
+              {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
-          {/* Job Details */}
-          <div className="space-y-2 text-sm">
+          {/* Meta */}
+          <div className="space-y-1.5 text-sm">
             {job.location && (
               <div className="flex items-center gap-2 text-gray-600">
-                <MapPin size={16} />
+                <MapPin size={15} />
                 <span>{job.location}</span>
               </div>
             )}
-            
             {job.salary && (
               <div className="flex items-center gap-2 text-gray-600">
-                <DollarSign size={16} />
+                <DollarSign size={15} />
                 <span>{job.salary}</span>
               </div>
             )}
-
             {job.date_applied && (
               <div className="flex items-center gap-2 text-gray-600">
-                <Calendar size={16} />
+                <Calendar size={15} />
                 <span>Applied: {job.date_applied}</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Job Description Preview */}
+        {/* ── Description preview ────────────────────────────────────────────── */}
         {job.job_description && (
           <div className="px-6 py-4 bg-gray-50">
             <p className="text-sm text-gray-700 line-clamp-3">
@@ -119,17 +112,17 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
           </div>
         )}
 
-        {/* Notes Preview */}
+        {/* ── Notes preview ──────────────────────────────────────────────────── */}
         {job.notes && (
           <div className="px-6 py-3 bg-yellow-50 border-t border-yellow-100">
             <div className="flex items-start gap-2">
-              <StickyNote size={16} className="text-yellow-600 mt-0.5" />
+              <StickyNote size={15} className="text-yellow-600 mt-0.5 shrink-0" />
               <p className="text-sm text-gray-700 line-clamp-2">{job.notes}</p>
             </div>
           </div>
         )}
 
-        {/* Actions */}
+        {/* ── Actions ────────────────────────────────────────────────────────── */}
         <div className="p-4 bg-gray-50 border-t border-gray-100">
           <div className="grid grid-cols-2 gap-2 mb-2">
             {job.status === 'Not Applied' && (
@@ -139,7 +132,7 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm font-medium"
               >
                 <CheckCircle size={16} />
-                {isApplying ? 'Applying...' : 'Mark Applied'}
+                {isApplying ? 'Applying…' : 'Mark Applied'}
               </button>
             )}
 
@@ -167,12 +160,20 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
               {job.notes ? 'Edit Notes' : 'Add Notes'}
             </button>
 
+            <button
+              onClick={() => setShowRecruiterScore(true)}
+              className="flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors text-sm font-medium col-span-2"
+            >
+              <Brain size={16} />
+              AI Recruiter Score
+            </button>
+
             {job.jd_link && (
               <a
                 href={job.jd_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium col-span-2"
               >
                 <ExternalLink size={16} />
                 View JD
@@ -190,31 +191,21 @@ const JobCard = ({ job, onUpdate, onDelete }) => {
         </div>
       </div>
 
-      {/* Modals */}
       {showResumeOptimizer && (
-        <ResumeOptimizer
-          job={job}
-          onClose={() => setShowResumeOptimizer(false)}
-        />
+        <ResumeOptimizer job={job} onClose={() => setShowResumeOptimizer(false)} />
       )}
-
       {showNotesEditor && (
         <NotesEditor
           job={job}
-          onSave={() => {
-            setShowNotesEditor(false);
-            onUpdate();
-          }}
+          onSave={() => { setShowNotesEditor(false); onUpdate(); }}
           onClose={() => setShowNotesEditor(false)}
         />
       )}
-
       {showEmailGenerator && (
-        <EmailGenerator
-          job={job}
-          currentUser={job.user}
-          onClose={() => setShowEmailGenerator(false)}
-        />
+        <EmailGenerator job={job} currentUser={job.user} onClose={() => setShowEmailGenerator(false)} />
+      )}
+      {showRecruiterScore && (
+        <RecruiterScoreModal job={job} onClose={() => setShowRecruiterScore(false)} />
       )}
     </>
   );

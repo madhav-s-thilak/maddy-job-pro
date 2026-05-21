@@ -67,4 +67,67 @@ export const resumeAPI = {
     }),
 };
 
+// Intelligence API (semantic scoring + best-match ranking)
+export const intelligenceAPI = {
+  // Score a single resume against a job description
+  score: (resumeText, jobDescription, jobCompany = '', jobRole = '') =>
+    api.post('/intelligence/score', {
+      resume_text: resumeText,
+      job_description: jobDescription,
+      job_company: jobCompany,
+      job_role: jobRole,
+    }),
+
+  // Rank all tracked jobs for a user by resume similarity
+  rankJobs: (resumeText, user = null, topN = 20) =>
+    api.post('/intelligence/rank-jobs', {
+      resume_text: resumeText,
+      user,
+      top_n: topN,
+    }),
+};
+
+// ATS Simulation API
+export const atsAPI = {
+  simulate: (resumeText, jobDescription, jobRole = '', jobCompany = '') =>
+    api.post('/ats/simulate', {
+      resume_text: resumeText,
+      job_description: jobDescription,
+      job_role: jobRole,
+      job_company: jobCompany,
+    }),
+};
+
+// Skill Gap Analysis API
+export const gapsAPI = {
+  analyze: (resumeText, user = null) =>
+    api.post('/gaps/analyze', { resume_text: resumeText, user }),
+};
+
+// Resume Compiler API
+export const compilerAPI = {
+  compile: (masterResume, jobDescription, jobRole = '', jobCompany = '') =>
+    api.post('/compiler/compile', {
+      master_resume: masterResume,
+      job_description: jobDescription,
+      job_role: jobRole,
+      job_company: jobCompany,
+    }),
+};
+
+// Portfolio Critic API
+export const portfolioAPI = {
+  analyze: (githubUrl, portfolioUrl = '') =>
+    api.post('/portfolio/analyze', {
+      github_url: githubUrl,
+      portfolio_url: portfolioUrl,
+    }),
+};
+
+// Browser Extension API
+export const extensionAPI = {
+  ingest: (payload) => api.post('/extension/ingest', payload),
+  ping:   ()        => api.get('/extension/ping'),
+};
+
 export default api;

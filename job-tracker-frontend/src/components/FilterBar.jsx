@@ -2,19 +2,7 @@ import React from 'react';
 import { Search, Filter, X } from 'lucide-react';
 
 const FilterBar = ({ filters, onFilterChange }) => {
-  const handleStatusChange = (status) => {
-    onFilterChange({ ...filters, status });
-  };
-
-  const handleSearchChange = (search) => {
-    onFilterChange({ ...filters, search });
-  };
-
-  const clearFilters = () => {
-    onFilterChange({ status: '', search: '' });
-  };
-
-  const hasActiveFilters = filters.status || filters.search;
+  const hasActive = filters.status || filters.search;
 
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
@@ -28,20 +16,20 @@ const FilterBar = ({ filters, onFilterChange }) => {
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search by company or role..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              onChange={e => onFilterChange({ ...filters, search: e.target.value })}
+              placeholder="Search by company or role…"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
             />
           </div>
         </div>
 
-        {/* Status Filter */}
+        {/* Status filter */}
         <div className="flex items-center gap-2">
           <Filter size={20} className="text-gray-500" />
           <select
             value={filters.status}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+            onChange={e => onFilterChange({ ...filters, status: e.target.value })}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white outline-none"
           >
             <option value="">All Statuses</option>
             <option value="Not Applied">Not Applied</option>
@@ -53,29 +41,25 @@ const FilterBar = ({ filters, onFilterChange }) => {
           </select>
         </div>
 
-        {/* Clear Filters */}
-        {hasActiveFilters && (
+        {/* Clear */}
+        {hasActive && (
           <button
-            onClick={clearFilters}
+            onClick={() => onFilterChange({ status: '', search: '' })}
             className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
           >
-            <X size={20} />
-            Clear
+            <X size={20} /> Clear
           </button>
         )}
       </div>
 
-      {/* Active Filters Display */}
-      {hasActiveFilters && (
+      {/* Active chips */}
+      {hasActive && (
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-600">Active filters:</span>
           {filters.status && (
             <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">
               Status: {filters.status}
-              <button
-                onClick={() => handleStatusChange('')}
-                className="hover:text-primary-900"
-              >
+              <button onClick={() => onFilterChange({ ...filters, status: '' })} className="hover:text-primary-900">
                 <X size={14} />
               </button>
             </span>
@@ -83,10 +67,7 @@ const FilterBar = ({ filters, onFilterChange }) => {
           {filters.search && (
             <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">
               Search: "{filters.search}"
-              <button
-                onClick={() => handleSearchChange('')}
-                className="hover:text-primary-900"
-              >
+              <button onClick={() => onFilterChange({ ...filters, search: '' })} className="hover:text-primary-900">
                 <X size={14} />
               </button>
             </span>
