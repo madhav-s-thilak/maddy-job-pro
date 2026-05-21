@@ -2,12 +2,9 @@ import React from 'react';
 import {
   Briefcase, BarChart2, Sparkles, Target,
   TrendingUp, Brain, Github, Globe,
-  Zap
+  Zap, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
-// ---------------------------------------------------------------------------
-// Navigation definition — each item has its own accent colour
-// ---------------------------------------------------------------------------
 const NAV = [
   {
     group: 'Workspace',
@@ -34,7 +31,6 @@ const NAV = [
   },
 ];
 
-// Colour tokens per accent — used for icon tint, active bg, active left-border
 const C = {
   blue:    { icon: 'text-blue-400',    bg: 'bg-blue-500/20',    border: 'border-blue-500',    text: 'text-blue-300',    dot: 'bg-blue-400'    },
   purple:  { icon: 'text-purple-400',  bg: 'bg-purple-500/20',  border: 'border-purple-500',  text: 'text-purple-300',  dot: 'bg-purple-400'  },
@@ -47,36 +43,52 @@ const C = {
 };
 
 // ---------------------------------------------------------------------------
-// NavItem
+// NavItem — renders icon-only when collapsed, icon+label when expanded
 // ---------------------------------------------------------------------------
-const NavItem = ({ item, active, onClick }) => {
+const NavItem = ({ item, active, collapsed, onClick }) => {
   const Icon = item.icon;
   const c = C[item.color];
 
   return (
     <button
+      title={collapsed ? item.label : undefined}
       onClick={() => onClick(item.id)}
       className={`
-        w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-        transition-all duration-150 relative
-        border-l-2
+        w-full flex items-center rounded-lg text-sm transition-all duration-200
+        border-l-2 group relative
+        ${collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5'}
         ${active
           ? `${c.bg} ${c.border} ${c.text} font-medium`
           : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
         }
       `}
     >
-      {/* Coloured icon */}
       <Icon
-        size={16}
+        size={17}
         className={active ? c.icon : 'text-slate-500 group-hover:text-slate-300'}
         strokeWidth={active ? 2.5 : 2}
       />
-      <span className="flex-1 text-left leading-snug">{item.label}</span>
 
-      {/* Active dot */}
-      {active && (
+      {/* Label — hidden when collapsed */}
+      {!collapsed && (
+        <span className="flex-1 text-left leading-snug truncate">{item.label}</span>
+      )}
+
+      {/* Active dot — only in expanded mode */}
+      {!collapsed && active && (
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.dot}`} />
+      )}
+
+      {/* Tooltip for collapsed mode */}
+      {collapsed && (
+        <span className="
+          absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 text-white text-xs
+          rounded-lg whitespace-nowrap pointer-events-none
+          opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50
+          border border-white/10 shadow-xl
+        ">
+          {item.label}
+        </span>
       )}
     </button>
   );
@@ -85,55 +97,89 @@ const NavItem = ({ item, active, onClick }) => {
 // ---------------------------------------------------------------------------
 // Sidebar
 // ---------------------------------------------------------------------------
-const Sidebar = ({ activeView, onViewChange }) => (
+const Sidebar = ({ activeView, onViewChange, collapsed, onToggle }) => (
   <aside
-    className="w-56 shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto"
-    style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)' }}
+    className="shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out"
+    style={{
+      width: collapsed ? '60px' : '224px',
+      background: 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)',
+    }}
   >
     {/* ── Brand ──────────────────────────────────────────────────────────── */}
-    <div className="px-5 py-5 border-b border-white/10">
-      <div className="flex items-center gap-3">
-        {/* Logo mark — gradient icon */}
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)' }}
-        >
-          <Zap size={18} className="text-white" strokeWidth={2.5} />
+    <div className={`border-b border-white/10 transition-all duration-300 ${collapsed ? 'px-2 py-4' : 'px-5 py-5'}`}>
+      {collapsed ? (
+        /* Collapsed: just the logo icon, centred */
+        <div className="flex justify-center">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg cursor-pointer"
+            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)' }}
+            onClick={onToggle}
+            title="Expand sidebar"
+          >
+            <Zap size={18} className="text-white" strokeWidth={2.5} />
+          </div>
         </div>
-
-        {/* Name */}
-        <div>
-          <p className="text-[15px] font-bold leading-tight">
-            <span className="text-white">Maddy</span>
-            {' '}
-            <span
-              style={{
+      ) : (
+        /* Expanded: logo + name */
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)' }}
+          >
+            <Zap size={18} className="text-white" strokeWidth={2.5} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[15px] font-bold leading-tight whitespace-nowrap">
+              <span className="text-white">Maddy</span>
+              {' '}
+              <span style={{
                 background: 'linear-gradient(90deg, #818cf8, #38bdf8)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Job Pro
-            </span>
-          </p>
-          <p className="text-[10px] text-slate-500 mt-0.5 tracking-wide">AI Career Platform</p>
+              }}>
+                Job Pro
+              </span>
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5 tracking-wide whitespace-nowrap">
+              AI Career Platform
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
 
+    {/* ── Toggle button ───────────────────────────────────────────────────── */}
+    {!collapsed && (
+      <div className="flex justify-end px-3 pt-3">
+        <button
+          onClick={onToggle}
+          title="Collapse sidebar"
+          className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center transition-colors"
+        >
+          <ChevronLeft size={14} className="text-slate-400" />
+        </button>
+      </div>
+    )}
+
     {/* ── Navigation ─────────────────────────────────────────────────────── */}
-    <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+    <nav className={`flex-1 py-3 space-y-4 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-1.5' : 'px-3'}`}>
       {NAV.map(section => (
         <div key={section.group}>
-          <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-            {section.group}
-          </p>
+          {/* Group label — hidden when collapsed */}
+          {!collapsed && (
+            <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+              {section.group}
+            </p>
+          )}
+          {collapsed && <div className="h-px bg-white/5 mx-1 mb-2" />}
+
           <div className="space-y-0.5">
             {section.items.map(item => (
               <NavItem
                 key={item.id}
                 item={item}
                 active={activeView === item.id}
+                collapsed={collapsed}
                 onClick={onViewChange}
               />
             ))}
@@ -143,11 +189,22 @@ const Sidebar = ({ activeView, onViewChange }) => (
     </nav>
 
     {/* ── Footer ─────────────────────────────────────────────────────────── */}
-    <div className="px-5 py-4 border-t border-white/10">
-      <div className="flex items-center gap-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <p className="text-[10px] text-slate-500">Groq · FastAPI · Render</p>
-      </div>
+    <div className={`border-t border-white/10 transition-all duration-300 ${collapsed ? 'px-2 py-3' : 'px-5 py-4'}`}>
+      {collapsed ? (
+        /* Collapsed: expand icon at the bottom */
+        <button
+          onClick={onToggle}
+          title="Expand sidebar"
+          className="w-full flex justify-center"
+        >
+          <ChevronRight size={15} className="text-slate-600 hover:text-slate-400 transition-colors" />
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <p className="text-[10px] text-slate-500">Groq · FastAPI · Render</p>
+        </div>
+      )}
     </div>
   </aside>
 );

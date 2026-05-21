@@ -246,6 +246,7 @@ const Dashboard = () => {
   const [filters, setFilters] = useState({ status: '', search: '' });
   const [activeView, setActiveView] = useState('jobs');
   const [showJobSearch, setShowJobSearch] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -285,6 +286,8 @@ const Dashboard = () => {
       <Sidebar
         activeView={activeView}
         onViewChange={(v) => { setActiveView(v); setShowJobSearch(false); }}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(p => !p)}
       />
 
       {/* Main content */}
