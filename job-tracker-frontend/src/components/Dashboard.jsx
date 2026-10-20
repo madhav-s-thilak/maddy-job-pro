@@ -110,9 +110,22 @@ const ExtensionView = () => (
       <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4">
         <span className="text-2xl">🔌</span>
       </div>
-      <h3 className="text-base font-semibold text-slate-900">Browser Extension Coming Soon</h3>
+      <h3 className="text-base font-semibold text-slate-900">Browser Extension</h3>
       <p className="text-sm text-slate-500 mt-1">
-        Save jobs from LinkedIn, Wellfound, and Greenhouse with one click. The backend is ready.
+        Save jobs from LinkedIn, Wellfound, Greenhouse and any careers page with one click.
+      </p>
+    </div>
+
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Install (Chrome)</p>
+      <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
+        <li>Open <code className="font-mono text-primary-700">chrome://extensions</code> and turn on <b>Developer mode</b>.</li>
+        <li>Click <b>Load unpacked</b> and choose the <code className="font-mono text-primary-700">job-tracker-extension</code> folder.</li>
+        <li>In the extension settings, enter your API URL (and API key if the backend has one), then press <b>Test connection</b>.</li>
+        <li>Open a job posting and click the extension icon. Check the details and press <b>Save to tracker</b>.</li>
+      </ol>
+      <p className="text-xs text-slate-500 mt-3">
+        Tip: right-click any job page and choose <b>Save job to Job Tracker</b> for a one-click save.
       </p>
     </div>
 
@@ -122,7 +135,8 @@ const ExtensionView = () => (
         POST /extension/ingest
       </code>
       <p className="text-xs text-slate-500">
-        Accepts company, role, job_description, jd_link, source_site. Auto-deduplicates.
+        Accepts company, role, job_description, jd_link, source_site. Auto-deduplicates. Set
+        EXTENSION_API_KEY on the backend to require an X-Extension-Key header.
       </p>
     </div>
 
@@ -132,9 +146,9 @@ const ExtensionView = () => (
         {[
           ['Backend ingestion API', true],
           ['Duplicate detection', true],
-          ['Chrome extension manifest', false],
-          ['LinkedIn content script', false],
-          ['Wellfound / Greenhouse parser', false],
+          ['Chrome extension (Manifest V3)', true],
+          ['LinkedIn page reader', true],
+          ['Wellfound / Greenhouse page readers', true],
         ].map(([label, done]) => (
           <li key={label} className="flex items-center gap-2.5 text-sm">
             <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${done ? 'bg-green-500' : 'bg-slate-200'}`}>

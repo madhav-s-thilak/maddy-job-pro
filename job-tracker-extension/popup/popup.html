@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Save job</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">&#9889;</span>
+      <div>
+        <div class="brand-name">Maddy <span>Job Pro</span></div>
+        <div class="brand-sub">Save this job to your tracker</div>
+      </div>
+    </div>
+    <button id="open-settings" class="link" type="button">Settings</button>
+  </header>
+
+  <div class="conn" id="conn">
+    <span id="conn-dot" class="dot pending"></span>
+    <span id="conn-text">Connecting&hellip;</span>
+  </div>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <form id="form" autocomplete="off" novalidate>
+    <label class="field">
+      <span>Save for</span>
+      <select id="user"></select>
+    </label>
+
+    <label class="field">
+      <span>Company <b class="req">*</b></span>
+      <input id="company" type="text" maxlength="200" placeholder="e.g. Acme Robotics">
+    </label>
+
+    <label class="field">
+      <span>Role <b class="req">*</b></span>
+      <input id="role" type="text" maxlength="200" placeholder="e.g. Senior Backend Engineer">
+    </label>
+
+    <div class="row">
+      <label class="field">
+        <span>Location</span>
+        <input id="location" type="text" maxlength="200">
+      </label>
+      <label class="field">
+        <span>Salary</span>
+        <input id="salary" type="text" maxlength="120">
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Job link</span>
+      <input id="jd-link" type="url">
+    </label>
+
+    <details class="desc">
+      <summary>Job description <span id="desc-count" class="muted"></span></summary>
+      <textarea id="description" rows="6"></textarea>
+    </details>
+
+    <div id="source" class="muted small"></div>
+
+    <button id="save" class="primary" type="submit">Save to tracker</button>
+    <div id="result" class="result" hidden role="status" aria-live="polite"></div>
+  </form>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

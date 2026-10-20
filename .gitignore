@@ -50,6 +50,7 @@ logs/
 !package.json
 !package-lock.json
 !tsconfig.json
+!job-tracker-extension/manifest.json
 
 # Temporary files
 *.tmp

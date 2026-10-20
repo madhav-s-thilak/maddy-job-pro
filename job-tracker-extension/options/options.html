@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Tracker extension settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <span class="logo" aria-hidden="true">&#9889;</span>
+      <div>
+        <h1>Maddy <span>Job Pro</span> extension</h1>
+        <p class="sub">Connect the extension to your Job Tracker backend.</p>
+      </div>
+    </header>
+
+    <form id="form" autocomplete="off" novalidate>
+      <label class="field">
+        <span>API URL</span>
+        <input id="api-url" type="url" placeholder="https://your-backend.onrender.com">
+        <small>Use <code>http://localhost:8000</code> for local development, or your deployed backend URL.</small>
+      </label>
+
+      <label class="field">
+        <span>API key <em>(optional)</em></span>
+        <input id="api-key" type="password" placeholder="Leave empty if the backend has no key set" autocomplete="off" spellcheck="false">
+        <small>Must match <code>EXTENSION_API_KEY</code> on the backend. Stored only in this browser profile.</small>
+      </label>
+
+      <label class="field">
+        <span>Default person</span>
+        <select id="default-user"></select>
+        <small>Who jobs are saved for unless you change it in the popup.</small>
+      </label>
+
+      <div class="actions">
+        <button id="save" class="primary" type="submit">Save settings</button>
+        <button id="test" class="secondary" type="button">Test connection</button>
+      </div>
+
+      <div id="status" class="status" hidden role="status" aria-live="polite"></div>
+    </form>
+
+    <section class="help">
+      <h2>How to use</h2>
+      <ol>
+        <li>Open a job posting (LinkedIn, Wellfound, Greenhouse or any careers page).</li>
+        <li>Click the extension icon, check the company and role, then press <b>Save to tracker</b>.</li>
+        <li>Or right-click the page and choose <b>Save job to Job Tracker</b> for a one-click save. A green &#10003; on the icon means saved, &ldquo;dup&rdquo; means it was already tracked, &ldquo;?&rdquo; means open the popup and fill it in.</li>
+      </ol>
+    </section>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

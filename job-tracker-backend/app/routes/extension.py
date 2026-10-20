@@ -10,12 +10,14 @@ Extension integration checklist:
   3. Valid new jobs are saved via sheets_service
   4. Response includes row_id and duplicate status for the extension to display
 """
+import hmac
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
+from app.config import settings
 from app.models.schemas import JobCreate, UserEnum
 from app.services.sheets_service import sheets_service
 
@@ -24,6 +26,24 @@ router = APIRouter(prefix="/extension", tags=["extension"])
 
 # Extension API version — bump when breaking changes land
 _EXTENSION_API_VERSION = "1.0"
+
+# Google Sheets rejects cells over 50,000 characters; stay well under it.
+_MAX_DESCRIPTION_CHARS = 40000
+
+
+def _key_matches(provided: Optional[str]) -> bool:
+    """True when no key is configured, or the provided key equals it."""
+    expected = settings.EXTENSION_API_KEY
+    if not expected:
+        return True
+    if not provided:
+        return False
+    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+
+def require_extension_key(x_extension_key: Optional[str] = Header(default=None)):
+    if not _key_matches(x_extension_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing extension API key")
 
 
 class ExtensionJobPayload(BaseModel):
@@ -48,7 +68,11 @@ class ExtensionIngestResponse(BaseModel):
     api_version: str
 
 
-@router.post("/ingest", response_model=ExtensionIngestResponse)
+@router.post(
+    "/ingest",
+    response_model=ExtensionIngestResponse,
+    dependencies=[Depends(require_extension_key)],
+)
 async def ingest_job(payload: ExtensionJobPayload):
     """
     Ingest a job sent from the browser extension.
@@ -82,7 +106,7 @@ async def ingest_job(payload: ExtensionJobPayload):
             user=payload.user,
             company=payload.company.strip(),
             role=payload.role.strip(),
-            job_description=payload.job_description or "",
+            job_description=(payload.job_description or "")[:_MAX_DESCRIPTION_CHARS],
             jd_link=payload.jd_link or "",
             location=payload.location or "",
             salary=payload.salary or "",
@@ -106,6 +130,16 @@ async def ingest_job(payload: ExtensionJobPayload):
 
 
 @router.get("/ping")
-async def extension_ping():
-    """Health check for extensions to verify backend connectivity."""
-    return {"status": "ok", "api_version": _EXTENSION_API_VERSION}
+async def extension_ping(x_extension_key: Optional[str] = Header(default=None)):
+    """
+    Health check for extensions to verify backend connectivity.
+
+    Never rejects: reports whether a key is required and whether the one sent
+    is accepted, so the extension can show a precise setup hint.
+    """
+    return {
+        "status": "ok",
+        "api_version": _EXTENSION_API_VERSION,
+        "auth_required": bool(settings.EXTENSION_API_KEY),
+        "authorized": _key_matches(x_extension_key),
+    }

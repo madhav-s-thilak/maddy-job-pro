@@ -11,7 +11,11 @@ class Settings:
     GOOGLE_SHEETS_CREDENTIALS: str = os.getenv("GOOGLE_SHEETS_CREDENTIALS", "")
     SPREADSHEET_ID: str = os.getenv("SPREADSHEET_ID", "")
     SERPAPI_KEY: str = os.getenv("SERPAPI_KEY", "")
-    
+
+    # Browser extension: shared secret sent as the X-Extension-Key header.
+    # Empty = no key required (local dev); set it on any public deployment.
+    EXTENSION_API_KEY: str = os.getenv("EXTENSION_API_KEY", "").strip()
+
     # CORS
     ALLOWED_ORIGINS: list = [
         "http://localhost:3000",
