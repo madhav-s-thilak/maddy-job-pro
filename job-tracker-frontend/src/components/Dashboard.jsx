@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { jobsAPI } from '../services/api';
+import { jobsAPI, API_BASE_URL } from '../services/api';
 import JobCard from './JobCard';
 import JobSearch from './JobSearch';
 import Analytics from './Analytics';
@@ -11,7 +11,7 @@ import SkillGapDashboard from './SkillGapDashboard';
 import ResumeCompiler from './ResumeCompiler';
 import PortfolioCritic from './PortfolioCritic';
 import { toast } from 'react-hot-toast';
-import { Plus, RefreshCw, Search, BarChart3, Sparkles, ChevronDown } from 'lucide-react';
+import { Plus, RefreshCw, Search, BarChart3, Sparkles, ChevronDown, Download } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // User switcher — top-right corner
@@ -116,15 +116,32 @@ const ExtensionView = () => (
       </p>
     </div>
 
-    <div className="bg-white border border-slate-200 rounded-xl p-5">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Install (Chrome)</p>
+    <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Install (Chrome, Edge, Brave)</p>
+      <a
+        href={`${process.env.PUBLIC_URL || ''}/job-tracker-extension.zip`}
+        download="job-tracker-extension.zip"
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors"
+      >
+        <Download className="w-4 h-4" />
+        Download extension (.zip)
+      </a>
       <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
+        <li>Unzip the download. You get a <code className="font-mono text-primary-700">job-tracker-extension</code> folder.</li>
         <li>Open <code className="font-mono text-primary-700">chrome://extensions</code> and turn on <b>Developer mode</b>.</li>
-        <li>Click <b>Load unpacked</b> and choose the <code className="font-mono text-primary-700">job-tracker-extension</code> folder.</li>
-        <li>In the extension settings, enter your API URL (and API key if the backend has one), then press <b>Test connection</b>.</li>
+        <li>Click <b>Load unpacked</b> and choose the unzipped <code className="font-mono text-primary-700">job-tracker-extension</code> folder.</li>
+        <li>In the extension settings, enter the API URL below (and the API key, if there is one), then press <b>Test connection</b>.</li>
         <li>Open a job posting and click the extension icon. Check the details and press <b>Save to tracker</b>.</li>
       </ol>
-      <p className="text-xs text-slate-500 mt-3">
+      <div>
+        <p className="text-xs text-slate-500 mb-1">API URL to enter in the extension settings</p>
+        <code className="block text-sm text-primary-700 bg-primary-50 border border-primary-100 rounded-lg px-4 py-2.5 font-mono break-all">
+          {API_BASE_URL}
+        </code>
+      </div>
+      <p className="text-xs text-slate-500">
+        Keep the unzipped folder: Chrome loads the extension from it. To update, download again,
+        replace the folder, and press the reload icon on the extension in chrome://extensions.
         Tip: right-click any job page and choose <b>Save job to Job Tracker</b> for a one-click save.
       </p>
     </div>

@@ -16,6 +16,19 @@ Manifest V3, plain JavaScript, no build step.
 
 After changing any file here, press the reload icon on the extension's card in `chrome://extensions`.
 
+## Sharing it with other people
+
+The dashboard's **Browser Extension** screen has a **Download extension (.zip)** button. Send people that link, or the zip itself. They unzip it, then follow the install steps above.
+
+Each person needs the **API URL** (shown on that screen) and the **API key**, if you set one. Anything they save goes into the Google Sheet your backend is connected to, under the person they pick in the popup.
+
+The zip is a committed copy of this folder (`job-tracker-frontend/public/job-tracker-extension.zip`). **After changing anything in this folder, rebuild it:**
+
+```
+python3 scripts/package_extension.py          # rebuild the zip
+python3 scripts/package_extension.py --check  # exits 1 if the zip is out of date
+```
+
 ## Using it
 
 - **Popup**: open a job page, click the extension icon, check the pre-filled company and role, press **Save to tracker**. Everything is editable, and the description is under "Job description".
