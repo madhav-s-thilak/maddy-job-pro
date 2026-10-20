@@ -47,6 +47,9 @@ class JobUpdate(BaseModel):
 
 class Job(JobBase):
     row_id: int
+    # Read-only timestamps kept by the sheet (ISO strings); empty on older rows.
+    created_at: Optional[str] = ""
+    updated_at: Optional[str] = ""
     
     class Config:
         from_attributes = True

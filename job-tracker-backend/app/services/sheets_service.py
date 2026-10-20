@@ -73,7 +73,9 @@ class SheetsService:
             status=row[8] if len(row) > 8 else StatusEnum.NOT_APPLIED,
             date_applied=row[9] if len(row) > 9 else "",
             resume_version=row[10] if len(row) > 10 else "",
-            notes=row[11] if len(row) > 11 else ""
+            notes=row[11] if len(row) > 11 else "",
+            created_at=row[12] if len(row) > 12 else "",
+            updated_at=row[13] if len(row) > 13 else "",
         )
     
     def get_all_jobs(self, user: Optional[str] = None) -> List[Job]:
@@ -158,7 +160,9 @@ class SheetsService:
                 status=job.status,
                 date_applied=job.date_applied,
                 resume_version=job.resume_version,
-                notes=job.notes
+                notes=job.notes,
+                created_at=timestamp,
+                updated_at=timestamp,
             )
         except Exception as e:
             print(f"Error creating job: {e}")
@@ -197,7 +201,17 @@ class SheetsService:
                 update_data['K'] = job_update.resume_version
             if job_update.notes is not None:
                 update_data['L'] = job_update.notes
-            
+
+            # Moving a job to Applied (e.g. from the status dropdown) without a date
+            # would leave it undated forever; record today so Analytics can place it.
+            already_dated = len(current_row) > 9 and current_row[9].strip()
+            if (
+                job_update.status == StatusEnum.APPLIED
+                and job_update.date_applied is None
+                and not already_dated
+            ):
+                update_data['J'] = datetime.now().strftime("%Y-%m-%d")
+
             # Update timestamp
             update_data['N'] = datetime.now().isoformat()
             
