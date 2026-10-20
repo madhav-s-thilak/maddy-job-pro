@@ -92,7 +92,7 @@ const UserSwitcher = ({ currentUser, onUserChange }) => {
 // ---------------------------------------------------------------------------
 const PAGE_META = {
   jobs:      { title: 'Job Tracker',       desc: 'Track and manage your applications' },
-  analytics: { title: 'Analytics',          desc: 'Application funnel and conversion rates' },
+  analytics: { title: 'Analytics',          desc: 'How your job search is converting' },
   bestmatch: { title: 'AI Best Match',      desc: 'Rank your jobs by resume similarity' },
   ats:       { title: 'ATS Simulator',      desc: 'See how an ATS parser scores your resume' },
   gaps:      { title: 'Skill Gap Analysis', desc: 'Identify missing skills across your target roles' },
@@ -313,7 +313,7 @@ const Dashboard = () => {
   const meta = PAGE_META[activeView] || PAGE_META.jobs;
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
+    <div className={`flex h-screen overflow-hidden print:block print:h-auto print:overflow-visible ${activeView === 'analytics' ? 'bg-slate-50' : 'bg-gradient-to-br from-blue-50 via-white to-purple-50'}`}>
       <Sidebar
         activeView={activeView}
         onViewChange={(v) => { setActiveView(v); setShowJobSearch(false); }}
@@ -322,9 +322,9 @@ const Dashboard = () => {
       />
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible">
         {/* Page top bar */}
-        <div className="bg-white border-b border-gray-200 shadow-sm px-6 py-4 shrink-0">
+        <div className="bg-white border-b border-gray-200 shadow-sm px-6 py-4 shrink-0 print:hidden">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
@@ -365,7 +365,7 @@ const Dashboard = () => {
         </div>
 
         {/* Scrollable content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto print:overflow-visible">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
             {activeView === 'jobs' && (

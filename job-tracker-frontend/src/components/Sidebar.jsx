@@ -99,7 +99,7 @@ const NavItem = ({ item, active, collapsed, onClick }) => {
 // ---------------------------------------------------------------------------
 const Sidebar = ({ activeView, onViewChange, collapsed, onToggle }) => (
   <aside
-    className="shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out"
+    className="shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out print:hidden"
     style={{
       width: collapsed ? '60px' : '224px',
       background: 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)',

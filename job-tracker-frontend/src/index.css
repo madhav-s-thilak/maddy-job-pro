@@ -82,3 +82,11 @@ body {
 .section-desc {
   @apply text-sm text-slate-500 mt-0.5;
 }
+
+/* ── Print (Analytics "PDF report") ───────────────────────────────────────── */
+@media print {
+  @page { margin: 12mm; }
+  body { background: #ffffff; }
+  /* keep chart colours and light fills when saving as PDF */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

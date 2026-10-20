@@ -1,306 +1,668 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { jobsAPI } from '../services/api';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { RefreshCw, ExternalLink, Minus, Plus, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Briefcase, CheckCircle, XCircle, Clock, Award, TrendingUp, ArrowRight } from 'lucide-react';
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  RadialBarChart, RadialBar,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell, ResponsiveContainer,
 } from 'recharts';
+import { jobsAPI } from '../services/api';
+import {
+  computeAnalytics, buildSummary, goalStats, safeHttpUrl, plural,
+  FOLLOW_UP_DAYS, COLD_DAYS, WEEKS_SHOWN, HEAT_WEEKS, WEEKDAYS, MIN_SAMPLE, MIN_HABIT_APPLICATIONS,
+} from '../lib/analytics';
+import { buildCsv, buildJson, exportFilename, downloadFile } from '../lib/analyticsExport';
+import { Card, Empty, Segmented, Sparkline, Meter, RAMP, GRID, AXIS_TEXT } from './analytics/primitives';
+import { FlowChart, FlowTable } from './analytics/FlowChart';
+import { Heatmap } from './analytics/Heatmap';
+import { ExportMenu } from './analytics/ExportMenu';
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+const GOAL_KEY = 'jobTracker.weeklyGoal';
+const DEFAULT_GOAL = 5;
+const MAX_GOAL = 100;
+const MAX_LIST = 4;
+const MUTED_BAR = '#cbd5e1';
 
-const STATUS_COLORS = {
-  'Not Applied': '#94a3b8',
-  'Applied':     '#3b82f6',
-  'Interview':   '#f59e0b',
-  'Offer':       '#10b981',
-  'Rejected':    '#ef4444',
-  'Withdrawn':   '#8b5cf6',
+const fmtDay = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const fmtTime = (d) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+// Storage can be blocked (private windows, strict settings): the goal is a convenience, not essential.
+const readGoal = () => {
+  try {
+    const n = parseInt(window.localStorage.getItem(GOAL_KEY), 10);
+    return Number.isFinite(n) && n >= 1 && n <= MAX_GOAL ? n : DEFAULT_GOAL;
+  } catch (e) {
+    return DEFAULT_GOAL;
+  }
 };
 
-const STAT_CARDS = [
-  { key: 'total_jobs',       label: 'Total Jobs',  icon: Briefcase,   from: 'from-blue-500',    to: 'to-blue-700'    },
-  { key: 'applied_count',    label: 'Applied',     icon: CheckCircle, from: 'from-emerald-500', to: 'to-emerald-700' },
-  { key: 'interview_count',  label: 'Interviews',  icon: Clock,       from: 'from-amber-400',   to: 'to-amber-600'   },
-  { key: 'offer_count',      label: 'Offers',      icon: Award,       from: 'from-purple-500',  to: 'to-purple-700'  },
-  { key: 'rejected_count',   label: 'Rejected',    icon: XCircle,     from: 'from-red-500',     to: 'to-red-700'     },
-  { key: 'unique_companies', label: 'Companies',   icon: TrendingUp,  from: 'from-indigo-500',  to: 'to-indigo-700'  },
-];
-
-// ─── Custom tooltips ─────────────────────────────────────────────────────────
-
-const DarkTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-gray-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-xl border border-white/10">
-      {label && <p className="font-semibold text-white/70 mb-1">{label}</p>}
-      {payload.map((p, i) => (
-        <p key={i} className="font-bold" style={{ color: p.fill || p.color || '#fff' }}>
-          {p.name || p.dataKey}: <span className="text-white">{p.value}</span>
-        </p>
-      ))}
-    </div>
+/** Renders summary parts, bolding the numbers. */
+const Parts = ({ parts }) =>
+  parts.map((p, i) =>
+    p.strong ? <strong key={i} className="font-semibold text-slate-900">{p.text}</strong> : <React.Fragment key={i}>{p.text}</React.Fragment>
   );
-};
 
-// ─── Pipeline stage flow ─────────────────────────────────────────────────────
-
-const PipelineStage = ({ label, count, color, pct, isLast }) => (
-  <div className="flex items-center gap-0">
-    <div className={`flex flex-col items-center justify-center px-5 py-4 rounded-xl ${color} text-white min-w-[90px]`}>
-      <span className="text-2xl font-bold">{count}</span>
-      <span className="text-[10px] font-semibold mt-0.5 opacity-90">{label}</span>
-    </div>
-    {!isLast && (
-      <div className="flex flex-col items-center mx-1">
-        <ArrowRight size={18} className="text-gray-300" />
-        <span className="text-[10px] text-gray-400 font-medium">{pct}%</span>
-      </div>
-    )}
+const Stat = ({ label, value, children }) => (
+  <div className="min-w-0">
+    <dt className="text-[13px] text-slate-500">{label}</dt>
+    <dd className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</dd>
+    {children}
   </div>
 );
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Hero: the headline number and where every job went ──────────────────────
 
-const Analytics = ({ currentUser }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await jobsAPI.getAnalytics(currentUser);
-      setData(res.data);
-    } catch { toast.error('Failed to load analytics'); }
-    finally { setLoading(false); }
-  }, [currentUser]);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  if (loading) return (
-    <div className="flex justify-center py-24">
-      <div className="w-10 h-10 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" />
-    </div>
-  );
-  if (!data) return null;
-
-  // Derived values
-  const breakdown = data.status_breakdown || {};
-  const donutData = Object.entries(breakdown).map(([name, value]) => ({ name, value }));
-
-  const barData = Object.entries(breakdown)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({ name: name.replace(' ', '\n'), value, fill: STATUS_COLORS[name] || '#94a3b8' }))
-    .sort((a, b) => b.value - a.value);
-
-  const appRate   = data.total_jobs    > 0 ? Math.round((data.applied_count   || 0) / data.total_jobs    * 100) : 0;
-  const itvRate   = (data.applied_count    || 0) > 0 ? Math.round((data.interview_count  || 0) / data.applied_count    * 100) : 0;
-  const offerRate = (data.interview_count  || 0) > 0 ? Math.round((data.offer_count      || 0) / data.interview_count  * 100) : 0;
-
-  const radialData = [
-    { name: 'App Rate',   value: appRate,   fill: '#3b82f6' },
-    { name: 'Itv Rate',   value: itvRate,   fill: '#f59e0b' },
-    { name: 'Offer Rate', value: offerRate, fill: '#10b981' },
-  ];
-
-  const pipeline = [
-    { label: 'Tracked',    count: data.total_jobs         || 0, color: 'bg-indigo-500',  pct: appRate   },
-    { label: 'Applied',    count: data.applied_count      || 0, color: 'bg-blue-500',    pct: itvRate   },
-    { label: 'Interviews', count: data.interview_count    || 0, color: 'bg-amber-500',   pct: offerRate },
-    { label: 'Offers',     count: data.offer_count        || 0, color: 'bg-emerald-500', pct: null      },
-  ];
+const Hero = ({ a }) => {
+  const [view, setView] = useState('flow');
+  const sentences = useMemo(() => buildSummary(a), [a]);
+  const replies = sentences.find((s) => s.key === 'replies');
+  const rest = sentences.filter((s) => s.key !== 'replies');
+  const completedWeeks = a.weeks.filter((w) => !w.current).map((w) => w.n);
 
   return (
-    <div className="space-y-5 animate-fade-in">
-
-      {/* ── Stat cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {STAT_CARDS.map(({ key, label, icon: Icon, from, to }) => (
-          <div
-            key={key}
-            className={`bg-gradient-to-br ${from} ${to} rounded-2xl p-4 text-white shadow-lg hover:scale-105 transition-transform duration-200`}
-          >
-            <div className="bg-white/20 rounded-xl w-9 h-9 flex items-center justify-center mb-3">
-              <Icon size={18} className="text-white" />
-            </div>
-            <p className="text-3xl font-bold">{data[key] ?? 0}</p>
-            <p className="text-white/80 text-xs mt-1 font-medium">{label}</p>
-          </div>
-        ))}
+    <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] print:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] print:shadow-none break-inside-avoid">
+      <div className="flex flex-col border-b border-slate-200 bg-slate-50/70 p-6 lg:border-b-0 lg:border-r lg:p-8 print:border-b-0 print:border-r">
+        <p className="text-[13px] text-slate-500">Reply rate</p>
+        <p className="mt-1 text-[56px] font-semibold leading-none tracking-tight text-slate-900">
+          {a.responseRate === null ? (
+            '—'
+          ) : (
+            <>
+              {a.responseRate}
+              <span className="text-[32px] font-medium text-slate-400">%</span>
+            </>
+          )}
+        </p>
+        <p className="mt-3 text-sm text-slate-600">
+          {replies ? <Parts parts={replies.parts} /> : 'Apply to a job to start measuring replies.'}
+        </p>
+        <div className="my-6 h-px bg-slate-200" />
+        <p className="text-[15px] leading-relaxed text-slate-600">
+          {rest.map((s, i) => (
+            <React.Fragment key={s.key}>
+              {i > 0 && ' '}
+              <Parts parts={s.parts} />
+            </React.Fragment>
+          ))}
+        </p>
+        <dl className="mt-auto grid grid-cols-3 gap-4 pt-8">
+          <Stat label="Applied" value={a.applied}>
+            {a.weeksTotal > 0 && (
+              <div className="mt-2">
+                <Sparkline values={completedWeeks} label={`Applications per week over the last ${completedWeeks.length} completed weeks`} />
+              </div>
+            )}
+          </Stat>
+          <Stat label="Interviews" value={a.reached} />
+          <Stat label="Offers" value={a.offers} />
+        </dl>
       </div>
 
-      {/* ── Pipeline flow ───────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-700 to-blue-700 px-5 py-4">
-          <h3 className="font-bold text-white text-sm">Application Pipeline</h3>
-          <p className="text-indigo-200 text-xs mt-0.5">Conversion at each stage</p>
+      <div className="min-w-0 p-6 lg:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold leading-snug text-slate-900">Where your jobs went</h2>
+            <p className="mt-1 text-[13px] text-slate-500">Every tracked job, from saved to outcome</p>
+          </div>
+          <Segmented
+            label="Flow or table"
+            value={view}
+            onChange={setView}
+            options={[{ value: 'flow', label: 'Flow' }, { value: 'table', label: 'Table' }]}
+          />
         </div>
-        <div className="p-5 flex flex-wrap items-center gap-1">
-          {pipeline.map((stage, i) => (
-            <PipelineStage
-              key={stage.label}
-              {...stage}
-              isLast={i === pipeline.length - 1}
+        <div className="mt-6">
+          {/* The diagram needs width; phones get the table instead. Print always gets the diagram. */}
+          <div className={`${view === 'flow' ? 'hidden md:block' : 'hidden'} print:block`}>
+            <FlowChart flow={a.flow} />
+          </div>
+          <div className={`${view === 'flow' ? 'md:hidden' : ''} print:hidden`}>
+            <FlowTable flow={a.flow} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── Momentum: weekly pace against a goal ────────────────────────────────────
+
+const WeekTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const w = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] shadow-sm">
+      <p className="text-slate-500">
+        {w.range}
+        {w.current ? ' (in progress)' : ''}
+      </p>
+      <p className="mt-0.5 text-slate-900">
+        <span className="font-semibold tabular-nums">{w.n}</span> {plural(w.n, 'application', 'applications')}
+        {w.met && <span className="text-slate-500"> · goal met</span>}
+      </p>
+    </div>
+  );
+};
+
+const KeyItem = ({ children, swatch }) => (
+  <span className="inline-flex items-center gap-1.5">
+    {swatch}
+    {children}
+  </span>
+);
+
+const GoalStepper = ({ goal, onGoal }) => (
+  <div className="flex items-center gap-2 text-[13px] text-slate-600 print:hidden">
+    <span>Weekly goal</span>
+    <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white">
+      <button type="button" aria-label="Lower the weekly goal" disabled={goal <= 1} onClick={() => onGoal((g) => g - 1)} className="px-2 py-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-40">
+        <Minus size={14} />
+      </button>
+      <span className="min-w-[2rem] text-center font-medium tabular-nums text-slate-900" aria-live="polite">{goal}</span>
+      <button type="button" aria-label="Raise the weekly goal" disabled={goal >= MAX_GOAL} onClick={() => onGoal((g) => g + 1)} className="px-2 py-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-40">
+        <Plus size={14} />
+      </button>
+    </div>
+  </div>
+);
+
+/** Round axis maximum and whole-number ticks (0, 2, 4, 6 rather than 0, 2, 4, 7). */
+const niceScale = (max) => {
+  const step = max <= 5 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : 10;
+  const top = Math.ceil(max / step) * step;
+  return { top, ticks: Array.from({ length: top / step + 1 }, (_, i) => i * step) };
+};
+
+const Momentum = ({ a, goal, onGoal }) => {
+  const [view, setView] = useState('chart');
+  const g = useMemo(() => goalStats(a.weeks, goal), [a.weeks, goal]);
+  const data = a.weeks.map((w, i) => ({
+    key: i,
+    label: fmtDay(w.start),
+    range: `${fmtDay(w.start)} – ${fmtDay(w.end)}`,
+    n: w.n,
+    current: w.current,
+    met: w.n >= g.goal,
+  }));
+
+  const scale = niceScale(Math.max(g.goal, 3, ...data.map((d) => d.n)));
+
+  const subtitle =
+    g.consideredWeeks > 0
+      ? `Goal met in ${g.metWeeks} of the last ${g.consideredWeeks} ${plural(g.consideredWeeks, 'week', 'weeks')}${
+          g.streak >= 2 ? ` · ${g.streak}-week streak` : ''
+        }`
+      : `Applications per week, last ${WEEKS_SHOWN} weeks`;
+
+  return (
+    <Card
+      title="Applications per week"
+      subtitle={subtitle}
+      action={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <GoalStepper goal={g.goal} onGoal={onGoal} />
+          {a.weeksTotal > 0 && (
+            <Segmented
+              label="Chart or table"
+              value={view}
+              onChange={setView}
+              options={[{ value: 'chart', label: 'Chart' }, { value: 'table', label: 'Table' }]}
             />
-          ))}
-          {data.rejected_count > 0 && (
-            <div className="ml-4 flex items-center gap-2">
-              <div className="w-px h-10 bg-gray-200" />
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center">
-                <p className="text-xl font-bold text-red-600">{data.rejected_count}</p>
-                <p className="text-[10px] text-red-500 font-semibold">Rejected</p>
-              </div>
-            </div>
           )}
         </div>
-      </div>
-
-      {/* ── Charts row 1: Donut + Bar ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Donut */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-4">
-            <h3 className="font-bold text-white text-sm">Status Distribution</h3>
-            <p className="text-slate-400 text-xs mt-0.5">Portfolio breakdown by status</p>
-          </div>
-          <div className="p-4">
-            {donutData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={donutData} cx="50%" cy="50%"
-                    innerRadius={60} outerRadius={95}
-                    paddingAngle={3} dataKey="value"
-                  >
-                    {donutData.map((entry, i) => (
-                      <Cell key={i} fill={STATUS_COLORS[entry.name] || '#94a3b8'} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<DarkTooltip />} />
-                  <Legend formatter={v => <span className="text-xs text-gray-600 font-medium">{v}</span>} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-48 text-gray-400 text-sm">No data yet</div>
-            )}
-          </div>
+      }
+    >
+      <div className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <div>
+          <p className="text-[13px] text-slate-500">This week</p>
+          <p className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-semibold tracking-tight text-slate-900">{g.currentN}</span>
+            <span className="text-sm text-slate-500">of {g.goal}</span>
+            {g.currentPct >= 100 && <Check size={16} className="self-center text-emerald-700" aria-label="Goal met" />}
+          </p>
+          <div className="mt-2.5"><Meter value={g.currentPct} label="Progress toward this week's goal" /></div>
         </div>
-
-        {/* Horizontal bar chart */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-700 to-purple-700 px-5 py-4">
-            <h3 className="font-bold text-white text-sm">Jobs by Status</h3>
-            <p className="text-violet-200 text-xs mt-0.5">Count per application stage</p>
-          </div>
-          <div className="p-4">
-            {barData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={barData} layout="vertical" margin={{ left: 8, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={72} />
-                  <Tooltip content={<DarkTooltip />} cursor={{ fill: '#f8fafc' }} />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={28}>
-                    {barData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-48 text-gray-400 text-sm">No data yet</div>
-            )}
-          </div>
+        <div>
+          <p className="text-[13px] text-slate-500">4-week average</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+            {a.avgLast4 === null ? '—' : a.avgLast4.toFixed(1)}
+          </p>
+          <p className="mt-1 text-[13px] text-slate-500">applications a week</p>
+        </div>
+        <div>
+          <p className="text-[13px] text-slate-500">Best week</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{a.bestWeek ? a.bestWeek.n : '—'}</p>
+          <p className="mt-1 text-[13px] text-slate-500">{a.bestWeek ? `week of ${fmtDay(a.bestWeek.start)}` : 'no applications yet'}</p>
         </div>
       </div>
 
-      {/* ── Charts row 2: Radial gauges + Funnel rates ─────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Radial conversion gauges */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-4">
-            <h3 className="font-bold text-white text-sm">Conversion Rate Gauges</h3>
-            <p className="text-emerald-100 text-xs mt-0.5">How efficiently your pipeline converts</p>
-          </div>
-          <div className="p-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <RadialBarChart
-                cx="50%" cy="55%"
-                innerRadius={30} outerRadius={90}
-                data={radialData}
-                startAngle={180} endAngle={-180}
-              >
-                <RadialBar
-                  minAngle={5}
-                  dataKey="value"
-                  background={{ fill: '#f1f5f9' }}
-                  cornerRadius={6}
+      {a.weeksTotal === 0 ? (
+        <Empty className="py-10 text-center">
+          No dated applications in the last {WEEKS_SHOWN} weeks. Mark a job as applied and it will appear here.
+        </Empty>
+      ) : view === 'chart' ? (
+        <>
+          <div role="img" aria-label={`Bar chart of applications per week against a goal of ${g.goal}. ${subtitle}.`}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={data} margin={{ top: 8, right: 52, bottom: 0, left: -8 }} barCategoryGap="22%">
+                <CartesianGrid vertical={false} stroke={GRID} />
+                <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: '#cbd5e1' }} tick={{ fontSize: 12, fill: AXIS_TEXT }} minTickGap={8} />
+                <YAxis
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  width={32}
+                  tick={{ fontSize: 12, fill: AXIS_TEXT }}
+                  domain={[0, scale.top]}
+                  ticks={scale.ticks}
                 />
-                <Tooltip
-                  content={({ active, payload }) =>
-                    active && payload?.length ? (
-                      <div className="bg-gray-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl">
-                        <p className="font-semibold">{payload[0].payload.name}</p>
-                        <p className="text-white font-bold">{payload[0].value}%</p>
-                      </div>
-                    ) : null
-                  }
+                <Tooltip cursor={{ fill: '#f1f5f9' }} content={<WeekTooltip />} />
+                <ReferenceLine
+                  y={g.goal}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  label={{ value: `goal ${g.goal}`, position: 'right', fill: AXIS_TEXT, fontSize: 12 }}
                 />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value, entry) => (
-                    <span className="text-xs text-gray-600 font-medium">
-                      {entry.payload.name}: <strong>{entry.payload.value}%</strong>
-                    </span>
-                  )}
-                />
-              </RadialBarChart>
+                <Bar dataKey="n" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {data.map((d) => (
+                    <Cell key={d.key} fill={d.met ? RAMP.applied : RAMP.tracked} fillOpacity={d.current ? 0.55 : 1} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* Detailed funnel rates */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-4">
-            <h3 className="font-bold text-white text-sm">Conversion Funnel</h3>
-            <p className="text-amber-100 text-xs mt-0.5">Stage-by-stage conversion breakdown</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
+            <KeyItem swatch={<i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: RAMP.applied }} />}>Met goal</KeyItem>
+            <KeyItem swatch={<i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: RAMP.tracked }} />}>Below goal</KeyItem>
+            <KeyItem swatch={<i className="h-px w-4 bg-slate-600" />}>Goal</KeyItem>
+            <span>Faded bar: week in progress</span>
           </div>
-          <div className="p-5 space-y-5">
-            {[
-              { label: 'Application Rate', pct: appRate,   color: 'from-blue-400 to-blue-600',    textColor: 'text-blue-600',    sub: `${data.applied_count || 0} of ${data.total_jobs} tracked` },
-              { label: 'Interview Rate',   pct: itvRate,   color: 'from-amber-400 to-amber-600',  textColor: 'text-amber-600',   sub: `${data.interview_count || 0} from ${data.applied_count || 0} applications` },
-              { label: 'Offer Rate',       pct: offerRate, color: 'from-emerald-400 to-emerald-600', textColor: 'text-emerald-600', sub: `${data.offer_count || 0} from ${data.interview_count || 0} interviews` },
-            ].map(({ label, pct, color, textColor, sub }) => (
-              <div key={label}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-sm font-semibold text-gray-700">{label}</span>
-                  <span className={`text-xl font-bold ${textColor}`}>{pct}%</span>
-                </div>
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-1000`}
-                    style={{ width: `${Math.max(pct, 2)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{sub}</p>
-              </div>
+        </>
+      ) : (
+        <table className="w-full text-[13px]">
+          <caption className="sr-only">Applications per week</caption>
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-slate-500">
+              <th scope="col" className="py-2 font-medium">Week</th>
+              <th scope="col" className="py-2 text-right font-medium">Applications</th>
+              <th scope="col" className="py-2 text-right font-medium">Goal {g.goal}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...data].reverse().map((d) => (
+              <tr key={d.key} className="border-b border-slate-100 text-slate-700 last:border-0">
+                <td className="py-1.5">
+                  {d.range}
+                  {d.current && <span className="text-slate-400"> (in progress)</span>}
+                </td>
+                <td className="py-1.5 text-right font-medium tabular-nums text-slate-900">{d.n}</td>
+                <td className="py-1.5 text-right text-slate-500">{d.met ? 'Met' : d.current ? '—' : 'Missed'}</td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
+  );
+};
 
-            <div className="pt-4 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Insights</p>
-              <ul className="space-y-1.5 text-sm text-gray-600">
-                {appRate < 50 && <li className="flex gap-2"><span className="text-blue-500 font-bold">→</span>Apply to more saved jobs to build pipeline momentum</li>}
-                {itvRate > 20 && <li className="flex gap-2"><span className="text-emerald-500 font-bold">★</span>Strong interview conversion — your resume is landing!</li>}
-                {data.offer_count > 0 && <li className="flex gap-2"><span className="text-amber-500 font-bold">🎉</span>You have an offer — time to negotiate!</li>}
-                {data.total_jobs > 50 && <li className="flex gap-2"><span className="text-purple-500 font-bold">→</span>Large pipeline — prioritise quality applications</li>}
-              </ul>
-            </div>
-          </div>
+// ─── Habits: calendar and weekday ─────────────────────────────────────────────
+
+const Consistency = ({ a }) => {
+  const activeDays = a.heatmap.flat().filter((c) => c.n > 0).length;
+  return (
+    <Card
+      title="Your consistency"
+      subtitle={
+        a.heatmapTotal === 0
+          ? `Daily applications over the last ${HEAT_WEEKS} weeks`
+          : `${activeDays} ${plural(activeDays, 'day', 'days')} with an application in the last ${HEAT_WEEKS} weeks`
+      }
+    >
+      <Heatmap weeks={a.heatmap} total={a.heatmapTotal} />
+    </Card>
+  );
+};
+
+const Weekdays = ({ a }) => {
+  const best = a.bestWeekday;
+  const max = Math.max(1, ...a.weekdays);
+  const dated = a.weekdays.reduce((s, n) => s + n, 0);
+  const tied = WEEKDAYS.filter((_, i) => a.weekdays[i] === max);
+  const tieText = `${tied.slice(0, -1).join(', ')}${tied.length > 2 ? ',' : ''} and ${tied[tied.length - 1]} tie at ${max}`;
+  let subtitle = `${best ? best.n : 0} of ${dated} dated applications`;
+  if (!best) {
+    subtitle = dated < MIN_HABIT_APPLICATIONS ? `Needs ${MIN_HABIT_APPLICATIONS} dated applications to show a pattern` : tieText;
+  }
+  return (
+    <Card title={best ? `You apply most on ${best.name}s` : 'When you apply'} subtitle={subtitle}>
+      <ul className="space-y-2.5">
+        {WEEKDAYS.map((name, i) => {
+          const n = a.weekdays[i];
+          const isBest = best && best.index === i;
+          return (
+            <li key={name} className="grid grid-cols-[34px_minmax(0,1fr)_24px] items-center gap-3 text-[13px]">
+              <span className={isBest ? 'font-medium text-slate-900' : 'text-slate-600'}>{name.slice(0, 3)}</span>
+              <div className="h-2.5 bg-slate-100">
+                <div
+                  className="h-full rounded-r-[4px]"
+                  style={{ width: `${n > 0 ? Math.max((n / max) * 100, 2) : 0}%`, background: !best || isBest ? RAMP.applied : MUTED_BAR }}
+                />
+              </div>
+              <span className="text-right font-medium tabular-nums text-slate-900">{n}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+};
+
+// ─── What's working ──────────────────────────────────────────────────────────
+
+const LENSES = {
+  resume: { label: 'Resume', noun: 'resume version', empty: "Record a resume version when you mark a job as applied, and you'll see which one gets more interviews.", missing: 'no resume version recorded' },
+  source: { label: 'Source', noun: 'source', empty: 'Save jobs with their posting link and this shows which sites get you replies.', missing: 'no posting link' },
+  mode: { label: 'Work mode', noun: 'work mode', empty: 'Add a location to your jobs to compare remote, hybrid and on-site roles.', missing: 'no location' },
+};
+
+/** The clear winner, if the data supports naming one. */
+const leaderOf = (rows) => {
+  const solid = rows
+    .filter((r) => !r.smallSample && r.name !== 'Other')
+    .sort((x, y) => y.interviewRate - x.interviewRate || y.replyRate - x.replyRate);
+  if (solid.length < 2) return null;
+  if (solid[0].interviewRate === solid[1].interviewRate && solid[0].replyRate === solid[1].replyRate) return null;
+  return solid[0];
+};
+
+const WhatsWorking = ({ a }) => {
+  const [lens, setLens] = useState('source');
+  const { rows, missing } = a.groups[lens];
+  const info = LENSES[lens];
+  const leader = leaderOf(rows);
+
+  return (
+    <Card
+      title="What's working"
+      subtitle={
+        leader
+          ? `${leader.name} leads with ${leader.interviewRate}% interviews (${leader.applied} applications)`
+          : `Reply and interview rates by ${info.noun}`
+      }
+      action={
+        <Segmented
+          label="Compare by"
+          value={lens}
+          onChange={setLens}
+          options={Object.entries(LENSES).map(([value, l]) => ({ value, label: l.label }))}
+        />
+      }
+    >
+      {rows.length === 0 ? (
+        <Empty>{info.empty}</Empty>
+      ) : (
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-[13px]">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-slate-500">
+              <th scope="col" className="py-2 font-medium">{LENSES[lens].label}</th>
+              <th scope="col" className="py-2 text-right font-medium">Applied</th>
+              <th scope="col" className="w-2/5 py-2 pl-6 font-medium">Reply rate</th>
+              <th scope="col" className="py-2 text-right font-medium">Interviews</th>
+              <th scope="col" className="py-2 text-right font-medium">Offers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name} className="border-b border-slate-100 text-slate-700 last:border-0">
+                <td className="max-w-[14rem] truncate py-2.5 pr-3 font-medium text-slate-900" title={r.name}>{r.name}</td>
+                <td className="py-2.5 text-right tabular-nums">{r.applied}</td>
+                <td className="py-2.5 pl-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-1.5 w-full min-w-[3rem] overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full" style={{ width: `${r.replyRate || 0}%`, background: r.smallSample ? MUTED_BAR : RAMP.applied }} />
+                    </div>
+                    <span className={`w-9 text-right tabular-nums ${r.smallSample ? 'text-slate-400' : 'font-medium text-slate-900'}`}>{r.replyRate}%</span>
+                  </div>
+                </td>
+                <td className="py-2.5 text-right tabular-nums">
+                  <span className="font-medium text-slate-900">{r.interviews}</span>
+                  <span className="text-slate-500"> ({r.interviewRate}%)</span>
+                </td>
+                <td className="py-2.5 text-right tabular-nums font-medium text-slate-900">{r.offers}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+      {rows.some((r) => r.smallSample) && (
+        <Empty className="mt-3">Grey bars have fewer than {MIN_SAMPLE} applications: treat them as a rough signal.</Empty>
+      )}
+      {missing > 0 && rows.length > 0 && (
+        <Empty className="mt-1.5">
+          {missing} {plural(missing, 'application has', 'applications have')} {info.missing}.
+        </Empty>
+      )}
+    </Card>
+  );
+};
+
+// ─── Needs attention ─────────────────────────────────────────────────────────
+
+const JobRow = ({ job, right }) => {
+  const href = safeHttpUrl(job.jd_link);
+  return (
+    <li className="flex items-center gap-3 border-b border-slate-100 py-2.5 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-slate-900">{job.company || 'Unknown company'}</p>
+        <p className="truncate text-[13px] text-slate-500">{job.role}</p>
+      </div>
+      <p className="whitespace-nowrap text-[13px] tabular-nums text-slate-700">{right}</p>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open the posting for ${job.company || 'this job'}`}
+          className="text-slate-400 transition-colors hover:text-slate-700 print:hidden"
+        >
+          <ExternalLink size={15} />
+        </a>
+      )}
+    </li>
+  );
+};
+
+const AttentionGroup = ({ title, count, children, emptyText }) => (
+  <div>
+    <div className="flex items-baseline justify-between">
+      <h3 className="text-[13px] font-semibold text-slate-900">{title}</h3>
+      <span className="text-xs tabular-nums text-slate-500">{count}</span>
+    </div>
+    {count === 0 ? <Empty className="mt-2">{emptyText}</Empty> : children}
+  </div>
+);
+
+const Attention = ({ a }) => {
+  const waiting = a.followUps.slice(0, MAX_LIST);
+  const cold = a.cold.slice(0, MAX_LIST);
+  const total = a.followUps.length + a.cold.length;
+  return (
+    <Card title="Needs attention" subtitle={total === 0 ? 'Nothing is overdue' : `${total} ${plural(total, 'job', 'jobs')} to follow up or apply to`}>
+      <div className="grid grid-cols-1 gap-x-12 gap-y-8 lg:grid-cols-2 print:grid-cols-2">
+        <AttentionGroup title={`Waiting on a reply, ${FOLLOW_UP_DAYS}+ days`} count={a.followUps.length} emptyText="Nothing overdue. Applications still at Applied after two weeks will be listed here.">
+          <ul>{waiting.map(({ job, days }) => <JobRow key={job.row_id} job={job} right={`${days} days`} />)}</ul>
+          {a.followUps.length > MAX_LIST && <Empty className="mt-2">+{a.followUps.length - MAX_LIST} more</Empty>}
+        </AttentionGroup>
+        <AttentionGroup title={`Saved, not applied, ${COLD_DAYS}+ days`} count={a.cold.length} emptyText="No saved jobs are going cold.">
+          <ul>{cold.map(({ job, days }) => <JobRow key={job.row_id} job={job} right={`saved ${days} days ago`} />)}</ul>
+          {a.cold.length > MAX_LIST && <Empty className="mt-2">+{a.cold.length - MAX_LIST} more</Empty>}
+        </AttentionGroup>
+      </div>
+    </Card>
+  );
+};
+
+// ─── Page ────────────────────────────────────────────────────────────────────
+
+const Skeleton = () => (
+  <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading analytics">
+    <div className="h-8 max-w-sm rounded-lg bg-slate-200/70" />
+    <div className="h-96 rounded-2xl bg-slate-200/70" />
+    <div className="h-96 rounded-2xl bg-slate-200/70" />
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="h-72 rounded-2xl bg-slate-200/70 lg:col-span-8" />
+      <div className="h-72 rounded-2xl bg-slate-200/70 lg:col-span-4" />
+    </div>
+  </div>
+);
+
+const Analytics = ({ currentUser }) => {
+  const [data, setData] = useState(null); // { user, jobs }
+  const [status, setStatus] = useState('loading'); // loading | ready | refreshing | error
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [goal, setGoal] = useState(readGoal);
+  const goalRef = useRef(goal); // latest value, so rapid clicks never act on a stale one
+  const requestId = useRef(0);
+
+  const load = useCallback(async () => {
+    const id = ++requestId.current;
+    setStatus((s) => (s === 'ready' || s === 'refreshing' ? 'refreshing' : 'loading'));
+    try {
+      const res = await jobsAPI.getAll(currentUser);
+      if (id !== requestId.current) return; // a newer request (or unmount) superseded this one
+      setData({ user: currentUser, jobs: Array.isArray(res.data) ? res.data : [] });
+      setUpdatedAt(new Date());
+      setStatus('ready');
+    } catch (e) {
+      if (id !== requestId.current) return;
+      setStatus('error');
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+  useEffect(() => () => { requestId.current += 1; }, []);
+
+  // Accepts a number or a function of the current goal.
+  const updateGoal = useCallback((change) => {
+    const wanted = typeof change === 'function' ? change(goalRef.current) : change;
+    const next = Math.min(MAX_GOAL, Math.max(1, wanted));
+    goalRef.current = next;
+    setGoal(next);
+    try {
+      window.localStorage.setItem(GOAL_KEY, String(next));
+    } catch (e) {
+      /* blocked storage: the goal still works for this visit */
+    }
+  }, []);
+
+  // Never show one person's numbers under another person's name.
+  const a = useMemo(
+    () => (data && data.user === currentUser ? computeAnalytics(data.jobs) : null),
+    [data, currentUser]
+  );
+  const busy = status === 'loading' || status === 'refreshing';
+
+  const handleExport = (kind) => {
+    if (!a) return;
+    const now = new Date();
+    const meta = { person: currentUser || '', now };
+    try {
+      if (kind === 'pdf') {
+        // Browsers use the page title as the suggested PDF name.
+        const previous = document.title;
+        document.title = exportFilename(currentUser, 'pdf', now).replace(/\.pdf$/, '');
+        try {
+          window.print();
+        } finally {
+          document.title = previous;
+        }
+        return;
+      }
+      const name = exportFilename(currentUser, kind, now);
+      if (kind === 'csv') downloadFile(name, 'text/csv', buildCsv(a, meta));
+      else downloadFile(name, 'application/json', buildJson(a, meta));
+      toast.success(`Downloaded ${name}`);
+    } catch (e) {
+      toast.error('Could not create the export');
+    }
+  };
+
+  if (!a && status !== 'error') return <Skeleton />;
+
+  if (!a) {
+    return (
+      <Card title="Couldn't load your analytics" subtitle="The server didn't return your jobs.">
+        <button type="button" onClick={load} className="btn-secondary">Try again</button>
+      </Card>
+    );
+  }
+
+  if (a.total === 0) {
+    return (
+      <Card title="No jobs to analyse yet" subtitle={currentUser ? `${currentUser} hasn't tracked any jobs.` : undefined}>
+        <Empty>Add a job from the Job Tracker, or save one with the browser extension, and your analysis will show up here.</Empty>
+      </Card>
+    );
+  }
+
+  return (
+    <div className={`space-y-6 transition-opacity ${status === 'refreshing' ? 'opacity-60' : ''}`}>
+      <header className="hidden print:block">
+        <h1 className="text-2xl font-semibold text-slate-900">Job search analysis</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {currentUser ? `${currentUser} · ` : ''}
+          {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+      </header>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <p className="text-[13px] text-slate-500">
+          {currentUser ? `${currentUser} · ` : ''}
+          {a.total} {plural(a.total, 'job', 'jobs')}
+          {updatedAt ? ` · updated ${fmtTime(updatedAt)}` : ''}
+          {status === 'error' && <span className="text-red-700"> {'·'} couldn&rsquo;t refresh</span>}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={load}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw size={14} className={busy ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <ExportMenu onExport={handleExport} disabled={busy} />
         </div>
       </div>
 
+      <Hero a={a} />
+
+      <Momentum a={a} goal={goal} onGoal={updateGoal} />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 print:grid-cols-12">
+        <div className="flex lg:col-span-8 print:col-span-8"><Consistency a={a} /></div>
+        <div className="flex lg:col-span-4 print:col-span-4"><Weekdays a={a} /></div>
+      </div>
+
+      <WhatsWorking a={a} />
+
+      <Attention a={a} />
+
+      <p className="text-xs leading-relaxed text-slate-500">
+        Applied includes jobs that moved on to Interview, Offer or Rejected. Interviews counts jobs now at Interview or Offer; a
+        rejection after an interview can&rsquo;t be told apart from an earlier one. Work mode is read from the Location and Role text:
+        a place name without &ldquo;remote&rdquo; or &ldquo;hybrid&rdquo; counts as on-site.
+        {a.undatedApplied > 0 && (
+          <>
+            {' '}{a.undatedApplied} applied {plural(a.undatedApplied, 'job has', 'jobs have')} no valid applied date, so{' '}
+            {plural(a.undatedApplied, 'it is', 'they are')} left out of the weekly chart, calendar, 30-day figures and follow-up list.
+          </>
+        )}
+      </p>
     </div>
   );
 };
